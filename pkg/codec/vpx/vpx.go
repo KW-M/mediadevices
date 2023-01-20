@@ -263,7 +263,7 @@ func (e *encoder) Read() ([]byte, func(), error) {
 		duration = 1
 	}
 
-	targetVpxBitrate := C.uint(float32(e.targetBitrate/1000) * 0.93) // 0.93 takes into account IP/UDP/RTP overhead
+	targetVpxBitrate := C.uint(float32(e.targetBitrate / 1000)) // convert to kilobits / second
 	if e.cfg.rc_target_bitrate != targetVpxBitrate && targetVpxBitrate >= 1 {
 		e.cfg.rc_target_bitrate = targetVpxBitrate
 		rc := C.vpx_codec_enc_config_set(e.codec, e.cfg)

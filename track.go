@@ -269,7 +269,7 @@ readLoop:
 		}
 
 		for _, pkt := range pkts {
-			switch pkt.(type) {
+			switch pkt := pkt.(type) {
 			case *rtcp.PictureLossIndication, *rtcp.FullIntraRequest:
 				if keyFrameController != nil {
 					if err := keyFrameController.ForceKeyFrame(); err != nil {
@@ -279,9 +279,10 @@ readLoop:
 				}
 			case *rtcp.ReceiverEstimatedMaximumBitrate:
 				if bitRateController != nil {
-					remb := pkt.(*rtcp.ReceiverEstimatedMaximumBitrate)
-					var bitrate int = int(remb.Bitrate)
-					if err := bitRateController.SetBitRate(bitrate); err != nil {
+					var available_bitrate int = int(pkt.Bitrate * 0.93) // Scale what we consider "available" bitrate to 93% of total estimated bitrate gives some breathing room for IP/UDP/RTP overhead.
+					// TODO: Adjust this to account for extra tracks or datachannels that may take up bandwidth. The bitrate from a REMB packet is the TOTAL available bitrate between us and the receiver peer.
+					// Here we naively set the bitrate to the "available_bitrate", ignoring whether other tracks and/or datachannels are sending at the same time and need a share of that bandwidth.
+					if err := bitRateController.SetBitRate(available_bitrate); err != nil {
 						logger.Warnf("failed to set bitrate: %s", err)
 						continue readLoop
 					}

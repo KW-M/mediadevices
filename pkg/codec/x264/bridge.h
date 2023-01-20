@@ -81,10 +81,9 @@ fail:
 
 #define RC_MARGIN 10000 /* 1kilobits / second*/
 static int apply_target_bitrate(Encoder *e, int target_bitrate) {
-  float adjusted_bitrate = (float)target_bitrate * 0.93; // 0.93 takes into account IP/UDP/RTP overhead
-  int target_encoder_bitrate = (int)adjusted_bitrate / 1000;
+  int target_encoder_bitrate = (int)target_bitrate / 1000;
   if (e->param.rc.i_bitrate == target_encoder_bitrate || target_encoder_bitrate <= 1) {
-    return 0; // no change or too small, no error
+    return 0; // if no change to bitrate or target bitrate is too small, we return no error (0)
   }
 
   e->param.rc.i_bitrate = target_encoder_bitrate;
