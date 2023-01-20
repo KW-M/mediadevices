@@ -226,15 +226,16 @@ func (track *baseTrack) bind(ctx webrtc.TrackLocalContext, specializedTrack Trac
 		}
 	}()
 
-	keyFrameController, ok := encodedReader.Controller().(codec.KeyFrameController)
-	if ok {
-		go track.rtcpReadLoop(ctx.RTCPReader(), keyFrameController, stopRead)
+	keyFrameController, keyCtlOk := encodedReader.Controller().(codec.KeyFrameController)
+	bitRateController, bitCtlOk := encodedReader.Controller().(codec.BitRateController)
+	if keyCtlOk || bitCtlOk {
+		go track.rtcpReadLoop(ctx.RTCPReader(), keyFrameController, bitRateController, stopRead)
 	}
 
 	return selectedCodec, nil
 }
 
-func (track *baseTrack) rtcpReadLoop(reader interceptor.RTCPReader, keyFrameController codec.KeyFrameController, stopRead chan struct{}) {
+func (track *baseTrack) rtcpReadLoop(reader interceptor.RTCPReader, keyFrameController codec.KeyFrameController, bitRateController codec.BitRateController, stopRead chan struct{}) {
 	readerBuffer := make([]byte, rtcpInboundMTU)
 
 readLoop:
@@ -261,11 +262,23 @@ readLoop:
 		}
 
 		for _, pkt := range pkts {
-			switch pkt.(type) {
+			switch pkt := pkt.(type) {
 			case *rtcp.PictureLossIndication, *rtcp.FullIntraRequest:
-				if err := keyFrameController.ForceKeyFrame(); err != nil {
-					logger.Warnf("failed to force key frame: %s", err)
-					continue readLoop
+				if keyFrameController != nil {
+					if err := keyFrameController.ForceKeyFrame(); err != nil {
+						logger.Warnf("failed to force key frame: %s", err)
+						continue readLoop
+					}
+				}
+			case *rtcp.ReceiverEstimatedMaximumBitrate:
+				if bitRateController != nil {
+					var available_bitrate int = int(pkt.Bitrate * 0.93) // Scale what we consider "available" bitrate to 93% of total estimated bitrate gives some breathing room for IP/UDP/RTP overhead.
+					// TODO: Adjust this to account for extra tracks or datachannels that may take up bandwidth. The bitrate from a REMB packet is the TOTAL available bitrate between us and the receiver peer.
+					// Here we naively set the bitrate to the "available_bitrate", ignoring whether other tracks and/or datachannels are sending at the same time and need a share of that bandwidth.
+					if err := bitRateController.SetBitRate(available_bitrate); err != nil {
+						logger.Warnf("failed to set bitrate: %s", err)
+						continue readLoop
+					}
 				}
 			}
 		}
