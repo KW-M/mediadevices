@@ -238,7 +238,7 @@ func TestRtcpHandler(t *testing.T) {
 				case <-time.After(1000 * time.Millisecond):
 					t.Error("Timeout")
 				case bitRate := <-mockBitRateController.rateUpdate:
-					if bitRate != 8927168 {
+					if bitRate != 8302266 { // 8302266 = 93% of 8927168 (what the bitrate in the REMB packet was)
 						t.Errorf("Got Unexpected bitrate: %d", bitRate)
 					}
 				}
